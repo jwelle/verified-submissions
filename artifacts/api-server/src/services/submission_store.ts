@@ -41,6 +41,7 @@ export async function save_submission(
           target: leadSubmissionsTable.certificate_url,
           set: {
             certificate_id: row.certificate_id,
+            raw_payload_json: row.raw_payload_json,
             trustedform_raw_json: row.trustedform_raw_json,
             parsed_submission_json: row.parsed_submission_json,
             score_json: row.score_json,
