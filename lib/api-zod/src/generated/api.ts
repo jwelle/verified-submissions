@@ -237,7 +237,7 @@ export const ScoreAndRouteResponse = zod.object({
       row_id: zod.string().nullish(),
       error: zod.string().nullish(),
     })
-    .nullish(),
+    .optional(),
   webhook_result: zod
     .object({
       success: zod.boolean().optional(),
@@ -245,7 +245,7 @@ export const ScoreAndRouteResponse = zod.object({
       error: zod.string().nullish(),
       attempts: zod.number().optional(),
     })
-    .nullish(),
+    .optional(),
 });
 
 /**
@@ -335,7 +335,7 @@ export const ScoreAndRouteFromTextResponse = zod.object({
       row_id: zod.string().nullish(),
       error: zod.string().nullish(),
     })
-    .nullish(),
+    .optional(),
   webhook_result: zod
     .object({
       success: zod.boolean().optional(),
@@ -343,5 +343,5 @@ export const ScoreAndRouteFromTextResponse = zod.object({
       error: zod.string().nullish(),
       attempts: zod.number().optional(),
     })
-    .nullish(),
+    .optional(),
 });

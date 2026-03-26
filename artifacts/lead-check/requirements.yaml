@@ -1,0 +1,12 @@
+packages:
+  "framer-motion": "Smooth page transitions and micro-interactions"
+  "zustand": "Global state management for lead results across pages"
+  "clsx": "Conditional class merging"
+  "tailwind-merge": "Tailwind class merging for UI components"
+  "date-fns": "Date parsing and formatting"
+
+images: []
+
+notes:
+  - "Using React Query mutation hooks generated from OpenAPI spec in @workspace/api-client-react"
+  - "Using a custom dark-mode-first premium enterprise theme"

@@ -18,6 +18,6 @@ export interface ScoreAndRouteResponse {
   parsed_lead?: ParsedLead;
   score?: LeadScore;
   routing?: RoutingResult;
-  sheet_result?: SheetResult | null;
-  webhook_result?: WebhookResult | null;
+  sheet_result?: SheetResult;
+  webhook_result?: WebhookResult;
 }

@@ -11,4 +11,4 @@ export interface WebhookResult {
   status_code?: number | null;
   error?: string | null;
   attempts?: number;
-} | null
+}

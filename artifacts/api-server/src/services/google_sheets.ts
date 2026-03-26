@@ -1,35 +1,30 @@
+// Google Sheets integration — uses the Replit Google Sheets connector
+// (googleapis package, authenticated via Replit connectors service)
+// Connection ID: conn_google-sheet_01KMKXR7H5F99NWQB27KMFM1T9
+import { google } from "googleapis";
 import { logger } from "../lib/logger";
 
-// Google Sheets review queue integration.
-// Uses the Google Sheets API v4 via a service account or OAuth token.
-//
-// Required environment variables (set via Replit Secrets or Google Sheets integration):
-//   GOOGLE_SHEETS_SPREADSHEET_ID  — the ID portion of the spreadsheet URL
-//   GOOGLE_SHEETS_ACCESS_TOKEN    — OAuth 2.0 access token (set by Replit Google integration)
-//   GOOGLE_SHEET_NAME             — optional tab name, defaults to "Lead Review Queue"
-
-const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_SHEET_NAME = "Lead Review Queue";
 
 // Columns written to the review sheet (in order)
 const COLUMNS = [
-  "timestamp",
-  "score",
-  "status",
-  "confidence",
-  "first_name",
-  "last_name",
-  "email",
-  "phone",
-  "address",
-  "business_name",
-  "risk_flags",
-  "explanations",
-  "certificate_id",
-  "certificate_url",
-  "lead_source",
-  "employee_count",
-  "consent_detected",
+  "TIMESTAMP",
+  "SCORE",
+  "STATUS",
+  "CONFIDENCE",
+  "FIRST_NAME",
+  "LAST_NAME",
+  "EMAIL",
+  "PHONE",
+  "ADDRESS",
+  "BUSINESS_NAME",
+  "RISK_FLAGS",
+  "EXPLANATIONS",
+  "CERTIFICATE_ID",
+  "CERTIFICATE_URL",
+  "LEAD_SOURCE",
+  "EMPLOYEE_COUNT",
+  "CONSENT_DETECTED",
 ];
 
 export interface ReviewRow {
@@ -57,80 +52,122 @@ export interface SheetResult {
   error: string | null;
 }
 
-function get_credentials(): {
-  spreadsheet_id: string;
-  access_token: string;
-  sheet_name: string;
-} | null {
-  const spreadsheet_id = process.env["GOOGLE_SHEETS_SPREADSHEET_ID"];
-  const access_token = process.env["GOOGLE_SHEETS_ACCESS_TOKEN"];
+// Replit connectors auth — gets a fresh OAuth access token each time
+// Never cache this client (tokens expire)
+let cachedConnectionSettings: { settings: { expires_at?: string; access_token?: string; oauth?: { credentials?: { access_token?: string } } } } | null = null;
 
-  if (!spreadsheet_id || !access_token) {
-    return null;
+async function getAccessToken(): Promise<string> {
+  if (
+    cachedConnectionSettings?.settings?.expires_at &&
+    new Date(cachedConnectionSettings.settings.expires_at).getTime() > Date.now()
+  ) {
+    const token = cachedConnectionSettings.settings.access_token ??
+      cachedConnectionSettings.settings.oauth?.credentials?.access_token;
+    if (token) return token;
   }
 
-  return {
-    spreadsheet_id,
-    access_token,
-    sheet_name:
-      process.env["GOOGLE_SHEET_NAME"] ?? DEFAULT_SHEET_NAME,
-  };
+  const hostname = process.env["REPLIT_CONNECTORS_HOSTNAME"];
+  const xReplitToken = process.env["REPL_IDENTITY"]
+    ? "repl " + process.env["REPL_IDENTITY"]
+    : process.env["WEB_REPL_RENEWAL"]
+      ? "depl " + process.env["WEB_REPL_RENEWAL"]
+      : null;
+
+  if (!hostname || !xReplitToken) {
+    throw new Error(
+      "Replit connector credentials not available (REPLIT_CONNECTORS_HOSTNAME / REPL_IDENTITY). Is the Google Sheets integration connected?",
+    );
+  }
+
+  const res = await fetch(
+    `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-sheet`,
+    {
+      headers: {
+        Accept: "application/json",
+        "X-Replit-Token": xReplitToken,
+      },
+    },
+  );
+
+  const data = await res.json() as { items?: typeof cachedConnectionSettings[] };
+  cachedConnectionSettings = data.items?.[0] ?? null;
+
+  const accessToken =
+    cachedConnectionSettings?.settings?.access_token ??
+    cachedConnectionSettings?.settings?.oauth?.credentials?.access_token;
+
+  if (!cachedConnectionSettings || !accessToken) {
+    throw new Error("Google Sheet not connected — please connect the Google Sheets integration in Replit");
+  }
+
+  return accessToken;
 }
 
-// Ensure the header row exists in the sheet (idempotent — skips if already present)
-async function ensure_header_row(
-  spreadsheet_id: string,
-  sheet_name: string,
-  access_token: string,
+// Returns a fresh sheets client — never cache this
+async function getGoogleSheetsClient() {
+  const accessToken = await getAccessToken();
+  const oauth2Client = new google.auth.OAuth2();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  return google.sheets({ version: "v4", auth: oauth2Client });
+}
+
+// Get spreadsheet ID — required env var
+function getSpreadsheetId(): string | null {
+  return process.env["GOOGLE_SHEETS_SPREADSHEET_ID"] ?? null;
+}
+
+function getSheetName(): string {
+  return process.env["GOOGLE_SHEET_NAME"] ?? DEFAULT_SHEET_NAME;
+}
+
+// Ensure the header row exists (idempotent)
+async function ensureHeaderRow(
+  sheetsClient: ReturnType<typeof google.sheets>,
+  spreadsheetId: string,
+  sheetName: string,
 ): Promise<void> {
-  const range = encodeURIComponent(`${sheet_name}!A1:Q1`);
-  const readUrl = `${SHEETS_API_BASE}/${spreadsheet_id}/values/${range}`;
+  try {
+    const res = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A1:Q1`,
+    });
 
-  const res = await fetch(readUrl, {
-    headers: { Authorization: `Bearer ${access_token}` },
-  });
+    if (res.data.values && res.data.values.length > 0) return; // Header already present
 
-  if (!res.ok) return; // silently skip if we can't read
-
-  const data = (await res.json()) as { values?: string[][] };
-  if (data.values && data.values.length > 0) return; // header already present
-
-  // Write header row
-  const writeUrl = `${SHEETS_API_BASE}/${spreadsheet_id}/values/${range}?valueInputOption=USER_ENTERED`;
-  await fetch(writeUrl, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${access_token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ values: [COLUMNS.map((c) => c.toUpperCase())] }),
-  });
+    await sheetsClient.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetName}!A1:Q1`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [COLUMNS] },
+    });
+  } catch {
+    // Silently skip header check — append will still work
+  }
 }
 
 export async function append_review_row(
   review_data: ReviewRow,
   certificate_url: string,
 ): Promise<SheetResult> {
-  const creds = get_credentials();
+  const spreadsheetId = getSpreadsheetId();
 
-  if (!creds) {
+  if (!spreadsheetId) {
     logger.warn(
-      "Google Sheets credentials not configured — GOOGLE_SHEETS_SPREADSHEET_ID and GOOGLE_SHEETS_ACCESS_TOKEN required",
+      "GOOGLE_SHEETS_SPREADSHEET_ID is not set — Google Sheets append skipped. " +
+      "Set this env var to the ID from your spreadsheet URL.",
     );
     return {
       success: false,
       row_id: null,
-      error:
-        "Google Sheets not configured. Set GOOGLE_SHEETS_SPREADSHEET_ID and connect the Google Sheets integration.",
+      error: "GOOGLE_SHEETS_SPREADSHEET_ID not configured. Set this to your Google Sheets spreadsheet ID.",
     };
   }
 
   try {
-    await ensure_header_row(
-      creds.spreadsheet_id,
-      creds.sheet_name,
-      creds.access_token,
-    );
+    const sheetsClient = await getGoogleSheetsClient();
+    const sheetName = getSheetName();
+
+    await ensureHeaderRow(sheetsClient, spreadsheetId, sheetName);
 
     const row = [
       new Date().toISOString(),
@@ -152,39 +189,21 @@ export async function append_review_row(
       review_data.consent_detected ? "YES" : "NO",
     ];
 
-    const range = encodeURIComponent(`${creds.sheet_name}!A:Q`);
-    const url = `${SHEETS_API_BASE}/${creds.spreadsheet_id}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${creds.access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ values: [row] }),
+    const response = await sheetsClient.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${sheetName}!A:Q`,
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values: [row] },
     });
 
-    if (!response.ok) {
-      const body = await response.text();
-      logger.error(
-        { status: response.status, body },
-        "Google Sheets append failed",
-      );
-      return {
-        success: false,
-        row_id: null,
-        error: `Sheets API error ${response.status}: ${body}`,
-      };
-    }
+    const row_id = response.data.updates?.updatedRange ?? null;
+    logger.info({ row_id, spreadsheetId }, "Lead appended to Google Sheets review queue");
 
-    const result = (await response.json()) as { updates?: { updatedRange?: string } };
-    const row_id = result.updates?.updatedRange ?? null;
-
-    logger.info({ row_id }, "Lead appended to Google Sheets review queue");
     return { success: true, row_id, error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    logger.error({ err }, "Google Sheets append threw");
+    logger.error({ err }, "Google Sheets append failed");
     return { success: false, row_id: null, error: message };
   }
 }

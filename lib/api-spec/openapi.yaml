@@ -303,7 +303,6 @@ components:
 
     SheetResult:
       type: object
-      nullable: true
       properties:
         success:
           type: boolean
@@ -316,7 +315,6 @@ components:
 
     WebhookResult:
       type: object
-      nullable: true
       properties:
         success:
           type: boolean

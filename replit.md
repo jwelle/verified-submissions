@@ -48,7 +48,7 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
-## Lead Integrity & Compliance Engine (Pass 1)
+## Lead Integrity & Compliance Engine (Pass 1 + Pass 2)
 
 A modular backend scoring system built into the API server. Evaluates TrustedForm / ActiveProspect certificate data to detect fraud, weak consent, and low-quality leads.
 

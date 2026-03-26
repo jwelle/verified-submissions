@@ -10,4 +10,4 @@ export interface SheetResult {
   success?: boolean;
   row_id?: string | null;
   error?: string | null;
-} | null
+}

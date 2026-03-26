@@ -33,15 +33,15 @@ export interface ClaimResult {
   note?: string | null;
 }
 
-export type ParsedLeadFieldMap = {[key: string]: string};
+export type ParsedLeadFieldMap = { [key: string]: string };
 
-export type ParsedLeadStatus = typeof ParsedLeadStatus[keyof typeof ParsedLeadStatus];
-
+export type ParsedLeadStatus =
+  (typeof ParsedLeadStatus)[keyof typeof ParsedLeadStatus];
 
 export const ParsedLeadStatus = {
-  parsed: 'parsed',
-  partial: 'partial',
-  error: 'error',
+  parsed: "parsed",
+  partial: "partial",
+  error: "error",
 } as const;
 
 export interface ParsedLead {
@@ -70,22 +70,22 @@ export interface ScoreMetrics {
   slider_change_count?: number;
 }
 
-export type LeadScoreStatus = typeof LeadScoreStatus[keyof typeof LeadScoreStatus];
-
+export type LeadScoreStatus =
+  (typeof LeadScoreStatus)[keyof typeof LeadScoreStatus];
 
 export const LeadScoreStatus = {
-  approved: 'approved',
-  review: 'review',
-  reject: 'reject',
+  approved: "approved",
+  review: "review",
+  reject: "reject",
 } as const;
 
-export type LeadScoreConfidence = typeof LeadScoreConfidence[keyof typeof LeadScoreConfidence];
-
+export type LeadScoreConfidence =
+  (typeof LeadScoreConfidence)[keyof typeof LeadScoreConfidence];
 
 export const LeadScoreConfidence = {
-  high: 'high',
-  medium: 'medium',
-  low: 'low',
+  high: "high",
+  medium: "medium",
+  low: "low",
 } as const;
 
 export interface LeadScore {
@@ -101,15 +101,15 @@ export interface LeadScore {
   metrics?: ScoreMetrics;
 }
 
-export type RoutingResultDecision = typeof RoutingResultDecision[keyof typeof RoutingResultDecision];
-
+export type RoutingResultDecision =
+  (typeof RoutingResultDecision)[keyof typeof RoutingResultDecision];
 
 export const RoutingResultDecision = {
-  sent_to_crm: 'sent_to_crm',
-  sent_to_review: 'sent_to_review',
-  rejected_logged_only: 'rejected_logged_only',
-  rejected_notified: 'rejected_notified',
-  approved_no_crm_configured: 'approved_no_crm_configured',
+  sent_to_crm: "sent_to_crm",
+  sent_to_review: "sent_to_review",
+  rejected_logged_only: "rejected_logged_only",
+  rejected_notified: "rejected_notified",
+  approved_no_crm_configured: "approved_no_crm_configured",
 } as const;
 
 export interface RoutingResult {
@@ -123,14 +123,14 @@ export interface SheetResult {
   success?: boolean;
   row_id?: string | null;
   error?: string | null;
-} | null
+}
 
 export interface WebhookResult {
   success?: boolean;
   status_code?: number | null;
   error?: string | null;
   attempts?: number;
-} | null
+}
 
 export interface ScoreLeadResponse {
   ok: boolean;
@@ -145,7 +145,6 @@ export interface ScoreAndRouteResponse {
   parsed_lead?: ParsedLead;
   score?: LeadScore;
   routing?: RoutingResult;
-  sheet_result?: SheetResult | null;
-  webhook_result?: WebhookResult | null;
+  sheet_result?: SheetResult;
+  webhook_result?: WebhookResult;
 }
-
