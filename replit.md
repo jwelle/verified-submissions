@@ -67,7 +67,11 @@ artifacts/api-server/src/
 │   ├── trustedform_client.ts   # TrustedForm cert claim via Basic Auth
 │   ├── event_parser.ts         # Parses text logs & JSON payloads from TrustedForm
 │   ├── field_inference.ts      # Maps field IDs → semantic roles (email, phone, etc.)
-│   └── scoring_engine.ts       # Scores lead across 6 dimensions
+│   ├── scoring_engine.ts       # Scores lead across 6 dimensions
+│   ├── routing_engine.ts       # Routes leads: approve → CRM, review → Sheets, reject → log
+│   ├── google_sheets.ts        # Appends review leads to Google Sheets
+│   ├── webhook_dispatcher.ts   # Outbound webhooks with retry
+│   └── submission_store.ts     # Postgres persistence: save_submission / get_submission_by_certificate
 ├── routes/
 │   └── lead_scoring.ts         # Express route handlers
 └── fixtures/
@@ -116,8 +120,7 @@ Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` 
 Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
 
 - `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
+- `src/schema/index.ts` — defines `lead_submissions` table (uuid pk, received_at, certificate_url, certificate_id, raw/trustedform/parsed/score JSON columns, status, processed_at)
 - `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
 - Exports: `.` (pool, db, schema), `./schema` (schema only)
 

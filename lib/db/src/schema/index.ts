@@ -1,20 +1,23 @@
-// Export your models here. Add one export per file
-// export * from "./posts";
-//
-// Each model/table should ideally be split into different files.
-// Each model/table should define a Drizzle table, insert schema, and types:
-//
-//   import { pgTable, text, serial } from "drizzle-orm/pg-core";
-//   import { createInsertSchema } from "drizzle-zod";
-//   import { z } from "zod/v4";
-//
-//   export const postsTable = pgTable("posts", {
-//     id: serial("id").primaryKey(),
-//     title: text("title").notNull(),
-//   });
-//
-//   export const insertPostSchema = createInsertSchema(postsTable).omit({ id: true });
-//   export type InsertPost = z.infer<typeof insertPostSchema>;
-//   export type Post = typeof postsTable.$inferSelect;
+import { pgTable, text, uuid, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 
-export {}
+export const leadSubmissionsTable = pgTable(
+  "lead_submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    received_at: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+    certificate_url: text("certificate_url"),
+    certificate_id: text("certificate_id"),
+    raw_payload_json: jsonb("raw_payload_json"),
+    trustedform_raw_json: jsonb("trustedform_raw_json"),
+    parsed_submission_json: jsonb("parsed_submission_json"),
+    score_json: jsonb("score_json"),
+    status: text("status"),
+    processed_at: timestamp("processed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("lead_submissions_certificate_url_idx").on(table.certificate_url),
+  ],
+);
+
+export type LeadSubmission = typeof leadSubmissionsTable.$inferSelect;
+export type InsertLeadSubmission = typeof leadSubmissionsTable.$inferInsert;

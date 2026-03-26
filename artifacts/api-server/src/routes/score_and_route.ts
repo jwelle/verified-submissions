@@ -17,6 +17,10 @@ import {
 } from "../services/routing_engine";
 import { append_review_row } from "../services/google_sheets";
 import { dispatch_outbound_webhook } from "../services/webhook_dispatcher";
+import {
+  save_submission,
+  get_submission_by_certificate,
+} from "../services/submission_store";
 
 const router = Router();
 
@@ -43,6 +47,7 @@ function get_outbound_webhook_config() {
 // Full Pass 2 pipeline: claim → parse → infer → normalize → score → route → sheets → webhook
 router.post("/score-and-route", async (req: Request, res: Response) => {
   const raw_url = req.body?.certificate_url as string | undefined;
+  const force = req.query["force"] === "true" || req.body?.force === true;
 
   // 1. Validate input
   if (!raw_url || typeof raw_url !== "string") {
@@ -62,6 +67,25 @@ router.post("/score-and-route", async (req: Request, res: Response) => {
       error: "certificate_url must begin with https://cert.trustedform.com",
     });
     return;
+  }
+
+  // 1b. Check for an existing stored result (skip if ?force=true)
+  if (!force) {
+    const existing = await get_submission_by_certificate(certificate_url, undefined);
+    if (existing) {
+      res.json({
+        ok: true,
+        cached: true,
+        stored_at: existing.processed_at,
+        claim_result: { ok: true, status_code: 200, certificate_url },
+        parsed_lead: existing.parsed_submission_json,
+        score: existing.score_json,
+        routing: null,
+        sheet_result: null,
+        webhook_result: null,
+      });
+      return;
+    }
   }
 
   // 2. Claim certificate
@@ -149,30 +173,45 @@ router.post("/score-and-route", async (req: Request, res: Response) => {
     webhook_result = await dispatch_outbound_webhook(payload, webhook_config);
   }
 
-  // 10. Return structured response
+  // 10. Persist the result
+  const parsed_lead_payload = {
+    certificate_id: normalized.certificate_id,
+    certificate_created_at: normalized.certificate_created_at,
+    submitted_at: normalized.submitted_at,
+    consent_detected: normalized.consent_detected,
+    lead_source: normalized.lead_source,
+    business_name: normalized.business_name,
+    address_full: normalized.address_full,
+    email: normalized.email,
+    phone: normalized.phone,
+    first_name: normalized.first_name,
+    last_name: normalized.last_name,
+    employee_count: normalized.employee_count,
+    field_map: normalized.field_map,
+    parse_notes: normalized.parse_notes,
+    status: normalized.status,
+  };
+
+  await save_submission({
+    certificate_url,
+    certificate_id: normalized.certificate_id || undefined,
+    raw_payload_json: req.body as Record<string, unknown>,
+    trustedform_raw_json: claim_result.data,
+    parsed_submission_json: parsed_lead_payload as unknown as Record<string, unknown>,
+    score_json: score as unknown as Record<string, unknown>,
+    status: score.status,
+    processed_at: new Date(),
+  });
+
+  // 11. Return structured response
   res.json({
     ok: true,
+    cached: false,
     claim_result: {
       ok: claim_result.ok,
       status_code: claim_result.status_code,
     },
-    parsed_lead: {
-      certificate_id: normalized.certificate_id,
-      certificate_created_at: normalized.certificate_created_at,
-      submitted_at: normalized.submitted_at,
-      consent_detected: normalized.consent_detected,
-      lead_source: normalized.lead_source,
-      business_name: normalized.business_name,
-      address_full: normalized.address_full,
-      email: normalized.email,
-      phone: normalized.phone,
-      first_name: normalized.first_name,
-      last_name: normalized.last_name,
-      employee_count: normalized.employee_count,
-      field_map: normalized.field_map,
-      parse_notes: normalized.parse_notes,
-      status: normalized.status,
-    },
+    parsed_lead: parsed_lead_payload,
     score,
     routing,
     sheet_result,
@@ -237,31 +276,46 @@ router.post("/score-and-route/from-text", async (req: Request, res: Response) =>
     webhook_result = await dispatch_outbound_webhook(payload, webhook_config);
   }
 
+  const from_text_parsed_lead = {
+    certificate_id: normalized.certificate_id,
+    certificate_created_at: normalized.certificate_created_at,
+    submitted_at: normalized.submitted_at,
+    consent_detected: normalized.consent_detected,
+    lead_source: normalized.lead_source,
+    business_name: normalized.business_name,
+    address_full: normalized.address_full,
+    email: normalized.email,
+    phone: normalized.phone,
+    first_name: normalized.first_name,
+    last_name: normalized.last_name,
+    employee_count: normalized.employee_count,
+    field_map: normalized.field_map,
+    parse_notes: normalized.parse_notes,
+    status: normalized.status,
+  };
+
+  // Persist the result — always insert a new row.
+  // Do NOT pass certificate_url so we always get an INSERT (no upsert) since
+  // text input is not a stable identifier and dedup is out of scope here.
+  await save_submission({
+    certificate_id: normalized.certificate_id || undefined,
+    raw_payload_json: { event_log_text, certificate_url: cert_url || null },
+    parsed_submission_json: from_text_parsed_lead as unknown as Record<string, unknown>,
+    score_json: score as unknown as Record<string, unknown>,
+    status: score.status,
+    processed_at: new Date(),
+  });
+
   res.json({
     ok: true,
+    cached: false,
     claim_result: {
       ok: false,
       status_code: null,
       note: "Scored from raw event text — no live certificate claim",
       certificate_url: cert_url || null,
     },
-    parsed_lead: {
-      certificate_id: normalized.certificate_id,
-      certificate_created_at: normalized.certificate_created_at,
-      submitted_at: normalized.submitted_at,
-      consent_detected: normalized.consent_detected,
-      lead_source: normalized.lead_source,
-      business_name: normalized.business_name,
-      address_full: normalized.address_full,
-      email: normalized.email,
-      phone: normalized.phone,
-      first_name: normalized.first_name,
-      last_name: normalized.last_name,
-      employee_count: normalized.employee_count,
-      field_map: normalized.field_map,
-      parse_notes: normalized.parse_notes,
-      status: normalized.status,
-    },
+    parsed_lead: from_text_parsed_lead,
     score,
     routing,
     sheet_result,
