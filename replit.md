@@ -48,6 +48,55 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+## Lead Integrity & Compliance Engine (Pass 1)
+
+A modular backend scoring system built into the API server. Evaluates TrustedForm / ActiveProspect certificate data to detect fraud, weak consent, and low-quality leads.
+
+### Endpoints
+
+- `POST /api/score-lead` — Claims a live TrustedForm certificate and scores the lead
+- `POST /api/score-lead/from-text` — Scores a lead from a raw event log string (dev/QA use)
+
+### Architecture
+
+```text
+artifacts/api-server/src/
+├── config/
+│   └── scoring_rules.ts        # All scoring constants (easy to tune)
+├── services/
+│   ├── trustedform_client.ts   # TrustedForm cert claim via Basic Auth
+│   ├── event_parser.ts         # Parses text logs & JSON payloads from TrustedForm
+│   ├── field_inference.ts      # Maps field IDs → semantic roles (email, phone, etc.)
+│   └── scoring_engine.ts       # Scores lead across 6 dimensions
+├── routes/
+│   └── lead_scoring.ts         # Express route handlers
+└── fixtures/
+    └── sample_leads.ts         # Good / review / reject test fixtures
+```
+
+### Scoring Dimensions
+
+| Dimension | Max Deduction |
+|---|---|
+| Consent / compliance | −110 (no consent + no submission + no cert) |
+| Field completeness | −60 (missing email, phone, name, address) |
+| Data quality | −50 (invalid email, phone, suspicious email) |
+| Session speed | −35 (< 5 seconds) / −20 (< 10 seconds) |
+| Behavioral signals | −30 (instability, erratic slider, resize, clicks) |
+| Positive adjustments | +15 max (clean flow, stable inputs, strong contact) |
+
+### Score Thresholds
+
+- **Approved** ≥ 85
+- **Review** 60–84
+- **Reject** < 60
+
+### Security
+
+- API key loaded from `ACTIVEPROSPECT_API_KEY` env var only
+- Basic Auth: `username=API, password=<key>`
+- Only `https://cert.trustedform.com` URLs are accepted — all others rejected
+
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)

@@ -1,0 +1,137 @@
+import { logger } from "../lib/logger";
+
+const TRUSTED_FORM_DOMAIN = "https://cert.trustedform.com";
+const REQUEST_TIMEOUT_MS = 15_000;
+
+export interface ClaimResult {
+  ok: boolean;
+  status_code: number | null;
+  data: Record<string, unknown>;
+  error: string | null;
+}
+
+export function get_api_key(): string {
+  const key = process.env["ACTIVEPROSPECT_API_KEY"];
+  if (!key) {
+    throw new Error(
+      "ACTIVEPROSPECT_API_KEY environment variable is not set. Cannot authenticate with TrustedForm.",
+    );
+  }
+  return key;
+}
+
+export function is_valid_trustedform_url(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.href.startsWith(TRUSTED_FORM_DOMAIN);
+  } catch {
+    return false;
+  }
+}
+
+export async function claim_certificate(
+  certificate_url: string,
+): Promise<ClaimResult> {
+  // Reject any URL that is not a TrustedForm cert URL to prevent credential leakage
+  if (!is_valid_trustedform_url(certificate_url)) {
+    return {
+      ok: false,
+      status_code: null,
+      data: {},
+      error: `Invalid certificate URL. Must begin with ${TRUSTED_FORM_DOMAIN}`,
+    };
+  }
+
+  let api_key: string;
+  try {
+    api_key = get_api_key();
+  } catch (err) {
+    return {
+      ok: false,
+      status_code: null,
+      data: {},
+      error: err instanceof Error ? err.message : "Missing API key",
+    };
+  }
+
+  const credentials = Buffer.from(`API:${api_key}`).toString("base64");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(certificate_url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Basic ${credentials}`,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    let data: Record<string, unknown> = {};
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (contentType.includes("application/json")) {
+      try {
+        data = (await response.json()) as Record<string, unknown>;
+      } catch {
+        data = {};
+      }
+    } else {
+      // Return raw text under a key so callers can still parse it
+      const text = await response.text();
+      data = { raw_text: text };
+    }
+
+    if (!response.ok) {
+      const errMsg =
+        response.status === 401
+          ? "Unauthorized — check ACTIVEPROSPECT_API_KEY"
+          : response.status === 404
+            ? "Certificate not found"
+            : `HTTP ${response.status}`;
+
+      logger.warn(
+        { status: response.status, url: certificate_url },
+        "TrustedForm claim failed",
+      );
+
+      return {
+        ok: false,
+        status_code: response.status,
+        data,
+        error: errMsg,
+      };
+    }
+
+    return {
+      ok: true,
+      status_code: response.status,
+      data,
+      error: null,
+    };
+  } catch (err) {
+    clearTimeout(timeout);
+
+    const isTimeout =
+      err instanceof Error && err.name === "AbortError";
+
+    const errorMessage = isTimeout
+      ? `Request timed out after ${REQUEST_TIMEOUT_MS}ms`
+      : err instanceof Error
+        ? err.message
+        : "Unknown network error";
+
+    logger.error({ err, url: certificate_url }, "TrustedForm request error");
+
+    return {
+      ok: false,
+      status_code: null,
+      data: {},
+      error: errorMessage,
+    };
+  }
+}

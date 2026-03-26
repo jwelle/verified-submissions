@@ -6,4 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./claimResult";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./leadScore";
+export * from "./leadScoreConfidence";
+export * from "./leadScoreStatus";
+export * from "./parsedLead";
+export * from "./parsedLeadFieldMap";
+export * from "./parsedLeadStatus";
+export * from "./scoreLeadFromTextRequest";
+export * from "./scoreLeadRequest";
+export * from "./scoreLeadResponse";
+export * from "./scoreMetrics";

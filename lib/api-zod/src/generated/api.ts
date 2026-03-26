@@ -14,3 +14,139 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Claims a TrustedForm certificate, parses the event log, infers field roles, normalizes the submission, and returns a structured fraud/compliance score with risk flags and explanations.
+
+ * @summary Score a lead via TrustedForm certificate claim
+ */
+export const ScoreLeadBody = zod.object({
+  certificate_url: zod
+    .string()
+    .describe(
+      "Full TrustedForm certificate URL (must begin with https:\/\/cert.trustedform.com)",
+    ),
+});
+
+export const scoreLeadResponseScoreValueMin = 0;
+export const scoreLeadResponseScoreValueMax = 100;
+
+export const ScoreLeadResponse = zod.object({
+  ok: zod.boolean(),
+  claim_result: zod
+    .object({
+      ok: zod.boolean().optional(),
+      status_code: zod.number().nullish(),
+      error: zod.string().nullish(),
+    })
+    .optional(),
+  parsed_lead: zod
+    .object({
+      certificate_id: zod.string().optional(),
+      certificate_created_at: zod.string().optional(),
+      submitted_at: zod.string().optional(),
+      consent_detected: zod.boolean().optional(),
+      lead_source: zod.string().optional(),
+      business_name: zod.string().optional(),
+      address_full: zod.string().optional(),
+      email: zod.string().optional(),
+      phone: zod.string().optional(),
+      first_name: zod.string().optional(),
+      last_name: zod.string().optional(),
+      employee_count: zod.number().nullish(),
+      field_map: zod.record(zod.string(), zod.string()).optional(),
+      parse_notes: zod.array(zod.string()).optional(),
+      status: zod.enum(["parsed", "partial", "error"]).optional(),
+    })
+    .optional(),
+  score: zod
+    .object({
+      value: zod
+        .number()
+        .min(scoreLeadResponseScoreValueMin)
+        .max(scoreLeadResponseScoreValueMax)
+        .optional(),
+      status: zod.enum(["approved", "review", "reject"]).optional(),
+      confidence: zod.enum(["high", "medium", "low"]).optional(),
+      risk_flags: zod.array(zod.string()).optional(),
+      explanations: zod.array(zod.string()).optional(),
+      metrics: zod
+        .object({
+          session_seconds: zod.number().nullish(),
+          meaningful_event_count: zod.number().optional(),
+          resize_event_count: zod.number().optional(),
+          repeated_field_edit_count: zod.number().optional(),
+          slider_change_count: zod.number().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Accepts a raw event log string (no live certificate claim). Useful for development, QA, and testing the scoring engine against captured event logs.
+
+ * @summary Score a lead from a raw TrustedForm event log text
+ */
+export const ScoreLeadFromTextBody = zod.object({
+  event_log_text: zod.string().describe("Raw TrustedForm event log text"),
+  certificate_url: zod
+    .string()
+    .optional()
+    .describe("Optional certificate URL for reference"),
+});
+
+export const scoreLeadFromTextResponseScoreValueMin = 0;
+export const scoreLeadFromTextResponseScoreValueMax = 100;
+
+export const ScoreLeadFromTextResponse = zod.object({
+  ok: zod.boolean(),
+  claim_result: zod
+    .object({
+      ok: zod.boolean().optional(),
+      status_code: zod.number().nullish(),
+      error: zod.string().nullish(),
+    })
+    .optional(),
+  parsed_lead: zod
+    .object({
+      certificate_id: zod.string().optional(),
+      certificate_created_at: zod.string().optional(),
+      submitted_at: zod.string().optional(),
+      consent_detected: zod.boolean().optional(),
+      lead_source: zod.string().optional(),
+      business_name: zod.string().optional(),
+      address_full: zod.string().optional(),
+      email: zod.string().optional(),
+      phone: zod.string().optional(),
+      first_name: zod.string().optional(),
+      last_name: zod.string().optional(),
+      employee_count: zod.number().nullish(),
+      field_map: zod.record(zod.string(), zod.string()).optional(),
+      parse_notes: zod.array(zod.string()).optional(),
+      status: zod.enum(["parsed", "partial", "error"]).optional(),
+    })
+    .optional(),
+  score: zod
+    .object({
+      value: zod
+        .number()
+        .min(scoreLeadFromTextResponseScoreValueMin)
+        .max(scoreLeadFromTextResponseScoreValueMax)
+        .optional(),
+      status: zod.enum(["approved", "review", "reject"]).optional(),
+      confidence: zod.enum(["high", "medium", "low"]).optional(),
+      risk_flags: zod.array(zod.string()).optional(),
+      explanations: zod.array(zod.string()).optional(),
+      metrics: zod
+        .object({
+          session_seconds: zod.number().nullish(),
+          meaningful_event_count: zod.number().optional(),
+          resize_event_count: zod.number().optional(),
+          repeated_field_edit_count: zod.number().optional(),
+          slider_change_count: zod.number().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});

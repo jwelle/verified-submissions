@@ -8,3 +8,101 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ErrorResponse {
+  ok: boolean;
+  error: string;
+}
+
+export interface ScoreLeadRequest {
+  /** Full TrustedForm certificate URL (must begin with https://cert.trustedform.com) */
+  certificate_url: string;
+}
+
+export interface ScoreLeadFromTextRequest {
+  /** Raw TrustedForm event log text */
+  event_log_text: string;
+  /** Optional certificate URL for reference */
+  certificate_url?: string;
+}
+
+export interface ClaimResult {
+  ok?: boolean;
+  status_code?: number | null;
+  error?: string | null;
+}
+
+export type ParsedLeadFieldMap = { [key: string]: string };
+
+export type ParsedLeadStatus =
+  (typeof ParsedLeadStatus)[keyof typeof ParsedLeadStatus];
+
+export const ParsedLeadStatus = {
+  parsed: "parsed",
+  partial: "partial",
+  error: "error",
+} as const;
+
+export interface ParsedLead {
+  certificate_id?: string;
+  certificate_created_at?: string;
+  submitted_at?: string;
+  consent_detected?: boolean;
+  lead_source?: string;
+  business_name?: string;
+  address_full?: string;
+  email?: string;
+  phone?: string;
+  first_name?: string;
+  last_name?: string;
+  employee_count?: number | null;
+  field_map?: ParsedLeadFieldMap;
+  parse_notes?: string[];
+  status?: ParsedLeadStatus;
+}
+
+export interface ScoreMetrics {
+  session_seconds?: number | null;
+  meaningful_event_count?: number;
+  resize_event_count?: number;
+  repeated_field_edit_count?: number;
+  slider_change_count?: number;
+}
+
+export type LeadScoreStatus =
+  (typeof LeadScoreStatus)[keyof typeof LeadScoreStatus];
+
+export const LeadScoreStatus = {
+  approved: "approved",
+  review: "review",
+  reject: "reject",
+} as const;
+
+export type LeadScoreConfidence =
+  (typeof LeadScoreConfidence)[keyof typeof LeadScoreConfidence];
+
+export const LeadScoreConfidence = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export interface LeadScore {
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  value?: number;
+  status?: LeadScoreStatus;
+  confidence?: LeadScoreConfidence;
+  risk_flags?: string[];
+  explanations?: string[];
+  metrics?: ScoreMetrics;
+}
+
+export interface ScoreLeadResponse {
+  ok: boolean;
+  claim_result?: ClaimResult;
+  parsed_lead?: ParsedLead;
+  score?: LeadScore;
+}

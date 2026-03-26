@@ -5,18 +5,27 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  ErrorResponse,
+  HealthStatus,
+  ScoreLeadFromTextRequest,
+  ScoreLeadRequest,
+  ScoreLeadResponse,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +108,179 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Claims a TrustedForm certificate, parses the event log, infers field roles, normalizes the submission, and returns a structured fraud/compliance score with risk flags and explanations.
+
+ * @summary Score a lead via TrustedForm certificate claim
+ */
+export const getScoreLeadUrl = () => {
+  return `/api/score-lead`;
+};
+
+export const scoreLead = async (
+  scoreLeadRequest: ScoreLeadRequest,
+  options?: RequestInit,
+): Promise<ScoreLeadResponse> => {
+  return customFetch<ScoreLeadResponse>(getScoreLeadUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(scoreLeadRequest),
+  });
+};
+
+export const getScoreLeadMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scoreLead>>,
+    TError,
+    { data: BodyType<ScoreLeadRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof scoreLead>>,
+  TError,
+  { data: BodyType<ScoreLeadRequest> },
+  TContext
+> => {
+  const mutationKey = ["scoreLead"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof scoreLead>>,
+    { data: BodyType<ScoreLeadRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return scoreLead(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ScoreLeadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof scoreLead>>
+>;
+export type ScoreLeadMutationBody = BodyType<ScoreLeadRequest>;
+export type ScoreLeadMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Score a lead via TrustedForm certificate claim
+ */
+export const useScoreLead = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scoreLead>>,
+    TError,
+    { data: BodyType<ScoreLeadRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof scoreLead>>,
+  TError,
+  { data: BodyType<ScoreLeadRequest> },
+  TContext
+> => {
+  return useMutation(getScoreLeadMutationOptions(options));
+};
+
+/**
+ * Accepts a raw event log string (no live certificate claim). Useful for development, QA, and testing the scoring engine against captured event logs.
+
+ * @summary Score a lead from a raw TrustedForm event log text
+ */
+export const getScoreLeadFromTextUrl = () => {
+  return `/api/score-lead/from-text`;
+};
+
+export const scoreLeadFromText = async (
+  scoreLeadFromTextRequest: ScoreLeadFromTextRequest,
+  options?: RequestInit,
+): Promise<ScoreLeadResponse> => {
+  return customFetch<ScoreLeadResponse>(getScoreLeadFromTextUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(scoreLeadFromTextRequest),
+  });
+};
+
+export const getScoreLeadFromTextMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scoreLeadFromText>>,
+    TError,
+    { data: BodyType<ScoreLeadFromTextRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof scoreLeadFromText>>,
+  TError,
+  { data: BodyType<ScoreLeadFromTextRequest> },
+  TContext
+> => {
+  const mutationKey = ["scoreLeadFromText"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof scoreLeadFromText>>,
+    { data: BodyType<ScoreLeadFromTextRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return scoreLeadFromText(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ScoreLeadFromTextMutationResult = NonNullable<
+  Awaited<ReturnType<typeof scoreLeadFromText>>
+>;
+export type ScoreLeadFromTextMutationBody = BodyType<ScoreLeadFromTextRequest>;
+export type ScoreLeadFromTextMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Score a lead from a raw TrustedForm event log text
+ */
+export const useScoreLeadFromText = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scoreLeadFromText>>,
+    TError,
+    { data: BodyType<ScoreLeadFromTextRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof scoreLeadFromText>>,
+  TError,
+  { data: BodyType<ScoreLeadFromTextRequest> },
+  TContext
+> => {
+  return useMutation(getScoreLeadFromTextMutationOptions(options));
+};

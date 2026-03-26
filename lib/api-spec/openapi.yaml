@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: lead-scoring
+    description: Lead integrity and compliance scoring
 paths:
   /healthz:
     get:
@@ -24,6 +26,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /score-lead:
+    post:
+      operationId: scoreLead
+      tags: [lead-scoring]
+      summary: Score a lead via TrustedForm certificate claim
+      description: >
+        Claims a TrustedForm certificate, parses the event log, infers field
+        roles, normalizes the submission, and returns a structured fraud/compliance
+        score with risk flags and explanations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreLeadRequest"
+      responses:
+        "200":
+          description: Lead scored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreLeadResponse"
+        "400":
+          description: Invalid request (bad URL or missing fields)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Certificate claim failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /score-lead/from-text:
+    post:
+      operationId: scoreLeadFromText
+      tags: [lead-scoring]
+      summary: Score a lead from a raw TrustedForm event log text
+      description: >
+        Accepts a raw event log string (no live certificate claim). Useful for
+        development, QA, and testing the scoring engine against captured event logs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreLeadFromTextRequest"
+      responses:
+        "200":
+          description: Lead scored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreLeadResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +100,140 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        error:
+          type: string
+      required:
+        - ok
+        - error
+
+    ScoreLeadRequest:
+      type: object
+      properties:
+        certificate_url:
+          type: string
+          description: "Full TrustedForm certificate URL (must begin with https://cert.trustedform.com)"
+          example: "https://cert.trustedform.com/abc123..."
+      required:
+        - certificate_url
+
+    ScoreLeadFromTextRequest:
+      type: object
+      properties:
+        event_log_text:
+          type: string
+          description: Raw TrustedForm event log text
+        certificate_url:
+          type: string
+          description: Optional certificate URL for reference
+      required:
+        - event_log_text
+
+    ClaimResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        status_code:
+          type: integer
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    ParsedLead:
+      type: object
+      properties:
+        certificate_id:
+          type: string
+        certificate_created_at:
+          type: string
+        submitted_at:
+          type: string
+        consent_detected:
+          type: boolean
+        lead_source:
+          type: string
+        business_name:
+          type: string
+        address_full:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        employee_count:
+          type: integer
+          nullable: true
+        field_map:
+          type: object
+          additionalProperties:
+            type: string
+        parse_notes:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [parsed, partial, error]
+
+    ScoreMetrics:
+      type: object
+      properties:
+        session_seconds:
+          type: number
+          nullable: true
+        meaningful_event_count:
+          type: integer
+        resize_event_count:
+          type: integer
+        repeated_field_edit_count:
+          type: integer
+        slider_change_count:
+          type: integer
+
+    LeadScore:
+      type: object
+      properties:
+        value:
+          type: integer
+          minimum: 0
+          maximum: 100
+        status:
+          type: string
+          enum: [approved, review, reject]
+        confidence:
+          type: string
+          enum: [high, medium, low]
+        risk_flags:
+          type: array
+          items:
+            type: string
+        explanations:
+          type: array
+          items:
+            type: string
+        metrics:
+          $ref: "#/components/schemas/ScoreMetrics"
+
+    ScoreLeadResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        claim_result:
+          $ref: "#/components/schemas/ClaimResult"
+        parsed_lead:
+          $ref: "#/components/schemas/ParsedLead"
+        score:
+          $ref: "#/components/schemas/LeadScore"
+      required:
+        - ok
