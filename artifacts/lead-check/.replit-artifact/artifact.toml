@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Lead Integrity Checker"
+version = "1.0.0"
+id = "artifacts/lead-check"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19390
+
+[services.development]
+run = "pnpm --filter @workspace/lead-check run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/lead-check", "run", "build" ]
+publicDir = "artifacts/lead-check/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19390"
+BASE_PATH = "/"

@@ -2,8 +2,8 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: Lead Integrity & Compliance Engine API
 servers:
   - url: /api
     description: Base API path
@@ -11,14 +11,15 @@ tags:
   - name: health
     description: Health operations
   - name: lead-scoring
-    description: Lead integrity and compliance scoring
+    description: Pass 1 — Lead scoring (certificate claim + score only)
+  - name: lead-routing
+    description: Pass 2 — Score + route + Google Sheets + outbound webhook
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -31,11 +32,7 @@ paths:
     post:
       operationId: scoreLead
       tags: [lead-scoring]
-      summary: Score a lead via TrustedForm certificate claim
-      description: >
-        Claims a TrustedForm certificate, parses the event log, infers field
-        roles, normalizes the submission, and returns a structured fraud/compliance
-        score with risk flags and explanations.
+      summary: Claim a TrustedForm certificate and score the lead
       requestBody:
         required: true
         content:
@@ -44,13 +41,13 @@ paths:
               $ref: "#/components/schemas/ScoreLeadRequest"
       responses:
         "200":
-          description: Lead scored successfully
+          description: Lead scored
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ScoreLeadResponse"
         "400":
-          description: Invalid request (bad URL or missing fields)
+          description: Invalid input
           content:
             application/json:
               schema:
@@ -66,10 +63,7 @@ paths:
     post:
       operationId: scoreLeadFromText
       tags: [lead-scoring]
-      summary: Score a lead from a raw TrustedForm event log text
-      description: >
-        Accepts a raw event log string (no live certificate claim). Useful for
-        development, QA, and testing the scoring engine against captured event logs.
+      summary: Score a lead from a raw event log string (dev/QA)
       requestBody:
         required: true
         content:
@@ -78,13 +72,73 @@ paths:
               $ref: "#/components/schemas/ScoreLeadFromTextRequest"
       responses:
         "200":
-          description: Lead scored successfully
+          description: Lead scored
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ScoreLeadResponse"
         "400":
-          description: Invalid request
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /score-and-route:
+    post:
+      operationId: scoreAndRoute
+      tags: [lead-routing]
+      summary: Full pipeline — score + route + Google Sheets + webhook
+      description: >
+        Claims a TrustedForm certificate, scores the lead, routes it
+        (approved/review/reject), appends review leads to Google Sheets,
+        and dispatches an outbound webhook.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreLeadRequest"
+      responses:
+        "200":
+          description: Lead processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreAndRouteResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Certificate claim failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /score-and-route/from-text:
+    post:
+      operationId: scoreAndRouteFromText
+      tags: [lead-routing]
+      summary: Full pipeline from raw event log (dev/QA)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreLeadFromTextRequest"
+      responses:
+        "200":
+          description: Lead processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreAndRouteResponse"
+        "400":
+          description: Invalid input
           content:
             application/json:
               schema:
@@ -116,7 +170,7 @@ components:
       properties:
         certificate_url:
           type: string
-          description: "Full TrustedForm certificate URL (must begin with https://cert.trustedform.com)"
+          description: "Full TrustedForm certificate URL (must start with https://cert.trustedform.com)"
           example: "https://cert.trustedform.com/abc123..."
       required:
         - certificate_url
@@ -142,6 +196,9 @@ components:
           type: integer
           nullable: true
         error:
+          type: string
+          nullable: true
+        note:
           type: string
           nullable: true
 
@@ -224,6 +281,54 @@ components:
         metrics:
           $ref: "#/components/schemas/ScoreMetrics"
 
+    RoutingResult:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum:
+            - sent_to_crm
+            - sent_to_review
+            - rejected_logged_only
+            - rejected_notified
+            - approved_no_crm_configured
+        destination:
+          type: string
+        score_status:
+          type: string
+        notes:
+          type: array
+          items:
+            type: string
+
+    SheetResult:
+      type: object
+      nullable: true
+      properties:
+        success:
+          type: boolean
+        row_id:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    WebhookResult:
+      type: object
+      nullable: true
+      properties:
+        success:
+          type: boolean
+        status_code:
+          type: integer
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        attempts:
+          type: integer
+
     ScoreLeadResponse:
       type: object
       properties:
@@ -235,5 +340,25 @@ components:
           $ref: "#/components/schemas/ParsedLead"
         score:
           $ref: "#/components/schemas/LeadScore"
+      required:
+        - ok
+
+    ScoreAndRouteResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        claim_result:
+          $ref: "#/components/schemas/ClaimResult"
+        parsed_lead:
+          $ref: "#/components/schemas/ParsedLead"
+        score:
+          $ref: "#/components/schemas/LeadScore"
+        routing:
+          $ref: "#/components/schemas/RoutingResult"
+        sheet_result:
+          $ref: "#/components/schemas/SheetResult"
+        webhook_result:
+          $ref: "#/components/schemas/WebhookResult"
       required:
         - ok
