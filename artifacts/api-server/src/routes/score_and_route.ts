@@ -1,5 +1,9 @@
 import { Router, type Request, type Response } from "express";
-import { claim_certificate, is_valid_trustedform_url } from "../services/trustedform_client";
+import {
+  claim_certificate,
+  is_valid_trustedform_url,
+  normalize_certificate_url,
+} from "../services/trustedform_client";
 import {
   parse_trustedform_text,
   parse_trustedform_payload,
@@ -38,10 +42,10 @@ function get_outbound_webhook_config() {
 // POST /api/score-and-route
 // Full Pass 2 pipeline: claim → parse → infer → normalize → score → route → sheets → webhook
 router.post("/score-and-route", async (req: Request, res: Response) => {
-  const { certificate_url } = req.body as { certificate_url?: string };
+  const raw_url = req.body?.certificate_url as string | undefined;
 
   // 1. Validate input
-  if (!certificate_url || typeof certificate_url !== "string") {
+  if (!raw_url || typeof raw_url !== "string") {
     res.status(400).json({
       ok: false,
       error: "certificate_url is required and must be a string",
@@ -49,11 +53,13 @@ router.post("/score-and-route", async (req: Request, res: Response) => {
     return;
   }
 
+  // Normalize: strip trailing paths like /assets/#certificate that browsers append
+  const certificate_url = normalize_certificate_url(raw_url);
+
   if (!is_valid_trustedform_url(certificate_url)) {
     res.status(400).json({
       ok: false,
-      error:
-        "certificate_url must begin with https://cert.trustedform.com",
+      error: "certificate_url must begin with https://cert.trustedform.com",
     });
     return;
   }
@@ -62,12 +68,21 @@ router.post("/score-and-route", async (req: Request, res: Response) => {
   const claim_result = await claim_certificate(certificate_url);
 
   if (!claim_result.ok) {
-    res.status(502).json({
+    const friendly =
+      claim_result.status_code === 404
+        ? "Certificate not found. It may have expired, already been claimed, or the URL is invalid."
+        : claim_result.status_code === 401
+          ? "TrustedForm API authentication failed. Check the ACTIVEPROSPECT_API_KEY secret."
+          : `TrustedForm returned an error (HTTP ${claim_result.status_code ?? "unknown"}): ${claim_result.error ?? "no detail"}`;
+
+    res.json({
       ok: false,
+      error: friendly,
       claim_result: {
         ok: false,
         status_code: claim_result.status_code,
-        error: claim_result.error,
+        error: friendly,
+        certificate_url,
       },
       parsed_lead: null,
       score: null,

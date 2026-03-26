@@ -29,6 +29,24 @@ export function is_valid_trustedform_url(url: string): boolean {
   }
 }
 
+// Normalize a TrustedForm URL to the bare certificate endpoint.
+// Handles common cases where users paste the full page URL from their browser:
+//   https://cert.trustedform.com/<hash>/assets/#certificate  → https://cert.trustedform.com/<hash>
+//   https://cert.trustedform.com/<hash>?foo=bar             → https://cert.trustedform.com/<hash>
+// Only the 40-character hex certificate ID is retained in the path.
+export function normalize_certificate_url(url: string): string {
+  try {
+    const parsed = new URL(url);
+    // Extract just the first path segment (the certificate hash)
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const cert_hash = segments[0] ?? "";
+    if (!cert_hash) return url; // Can't normalize — return as-is and let validation catch it
+    return `${TRUSTED_FORM_DOMAIN}/${cert_hash}`;
+  } catch {
+    return url;
+  }
+}
+
 export async function claim_certificate(
   certificate_url: string,
 ): Promise<ClaimResult> {

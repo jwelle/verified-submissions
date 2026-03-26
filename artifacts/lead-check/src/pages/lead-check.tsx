@@ -24,28 +24,60 @@ export default function LeadCheck() {
 
   const isPending = isPendingUrl || isPendingText;
 
+  // Strip any path/fragment beyond the certificate hash, e.g. /assets/#certificate
+  const normalizeCertUrl = (raw: string): string => {
+    try {
+      const parsed = new URL(raw);
+      if (!parsed.hostname.includes("trustedform.com")) return raw;
+      const hash = parsed.pathname.split("/").filter(Boolean)[0] ?? "";
+      return hash ? `https://cert.trustedform.com/${hash}` : raw;
+    } catch {
+      return raw;
+    }
+  };
+
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Auto-normalize as user types/pastes — strip any path after the hash
+    if (raw.includes("trustedform.com/") && raw.length > 50) {
+      setUrl(normalizeCertUrl(raw));
+    } else {
+      setUrl(raw);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let data;
+      let data: any;
       if (mode === "url") {
         if (!url) {
           toast({ title: "Validation Error", description: "Please enter a certificate URL", variant: "destructive" });
           return;
         }
         if (!url.startsWith("https://cert.trustedform.com")) {
-          toast({ title: "Validation Error", description: "Must be a valid TrustedForm URL", variant: "destructive" });
+          toast({ title: "Validation Error", description: "Must be a valid TrustedForm URL (https://cert.trustedform.com/...)", variant: "destructive" });
           return;
         }
-        data = await scoreUrl({ data: { certificate_url: url } });
+        data = await scoreUrl({ data: { certificate_url: normalizeCertUrl(url) } });
       } else {
         if (!logText.trim()) {
           toast({ title: "Validation Error", description: "Please paste the event log text", variant: "destructive" });
           return;
         }
-        data = await scoreText({ data: { event_log_text: logText, certificate_url: url || undefined } });
+        data = await scoreText({ data: { event_log_text: logText, certificate_url: url ? normalizeCertUrl(url) : undefined } });
       }
-      
+
+      // API returned ok: false (e.g. cert not found) — show readable error, don't navigate
+      if (data && data.ok === false) {
+        toast({
+          title: "Certificate Error",
+          description: data.error ?? data.claim_result?.error ?? "The certificate could not be claimed.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setResult(data);
       setLocation("/results");
     } catch (error: any) {
@@ -121,7 +153,7 @@ export default function LeadCheck() {
                     <Input 
                       placeholder="https://cert.trustedform.com/..." 
                       value={url} 
-                      onChange={e => setUrl(e.target.value)}
+                      onChange={handleUrlChange}
                       className="bg-background/50 border-border/50 h-14 text-base px-4 focus-visible:ring-primary/30 focus-visible:border-primary/50"
                     />
                   </motion.div>
