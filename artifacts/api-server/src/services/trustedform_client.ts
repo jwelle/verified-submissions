@@ -3,6 +3,14 @@ import { logger } from "../lib/logger";
 const TRUSTED_FORM_DOMAIN = "https://cert.trustedform.com";
 const REQUEST_TIMEOUT_MS = 15_000;
 
+interface TrustedFormFetchResponse {
+  headers: { get(name: string): string | null };
+  json(): Promise<unknown>;
+  ok: boolean;
+  status: number;
+  text(): Promise<string>;
+}
+
 export interface ClaimResult {
   ok: boolean;
   status_code: number | null;
@@ -78,14 +86,14 @@ export async function claim_certificate(
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(certificate_url, {
+    const response = (await fetch(certificate_url, {
       method: "POST",
       headers: {
         Accept: "application/json",
         Authorization: `Basic ${credentials}`,
       },
       signal: controller.signal,
-    });
+    })) as TrustedFormFetchResponse;
 
     clearTimeout(timeout);
 

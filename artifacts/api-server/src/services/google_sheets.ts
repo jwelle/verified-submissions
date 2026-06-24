@@ -6,6 +6,10 @@ import { logger } from "../lib/logger";
 
 const DEFAULT_SHEET_NAME = "Lead Review Queue";
 
+interface JsonFetchResponse {
+  json(): Promise<unknown>;
+}
+
 // Columns written to the review sheet (in order)
 const COLUMNS = [
   "TIMESTAMP",
@@ -79,7 +83,7 @@ async function getAccessToken(): Promise<string> {
     );
   }
 
-  const res = await fetch(
+  const res = (await fetch(
     `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-sheet`,
     {
       headers: {
@@ -87,7 +91,7 @@ async function getAccessToken(): Promise<string> {
         "X-Replit-Token": xReplitToken,
       },
     },
-  );
+  )) as JsonFetchResponse;
 
   const data = await res.json() as { items?: typeof cachedConnectionSettings[] };
   cachedConnectionSettings = data.items?.[0] ?? null;

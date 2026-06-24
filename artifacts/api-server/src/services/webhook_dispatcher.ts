@@ -3,6 +3,11 @@ import { logger } from "../lib/logger";
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_RETRY_ATTEMPTS = 3;
 
+interface WebhookFetchResponse {
+  ok: boolean;
+  status: number;
+}
+
 export interface WebhookConfig {
   enabled: boolean;
   url: string;
@@ -57,12 +62,12 @@ export async function dispatch_outbound_webhook(
     const timer = setTimeout(() => controller.abort(), timeout_ms);
 
     try {
-      const response = await fetch(config.url, {
+      const response = (await fetch(config.url, {
         method,
         headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
-      });
+      })) as WebhookFetchResponse;
 
       clearTimeout(timer);
       last_status = response.status;
