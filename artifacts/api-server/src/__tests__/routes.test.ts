@@ -3,27 +3,27 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock the pipeline's external edges so tests are hermetic (no DB, no network,
 // no Google Sheets). Mocking submission_store also prevents @workspace/db from
 // loading (it throws unless DATABASE_URL is set).
-vi.mock("../services/submission_store", () => ({
+vi.mock("../services/submission_store.js", () => ({
   save_submission: vi.fn(async () => ({ id: "analysis-123" })),
   get_submission_by_certificate: vi.fn(async () => null),
 }));
-vi.mock("../services/google_sheets", () => ({
+vi.mock("../services/google_sheets.js", () => ({
   append_review_row: vi.fn(async () => ({ success: true, row_id: "r1", error: null })),
 }));
-vi.mock("../services/webhook_dispatcher", () => ({
+vi.mock("../services/webhook_dispatcher.js", () => ({
   dispatch_outbound_webhook: vi.fn(async () => ({ success: true })),
 }));
-vi.mock("../services/trustedform_client", async (importActual) => {
-  const actual = await importActual<typeof import("../services/trustedform_client")>();
+vi.mock("../services/trustedform_client.js", async (importActual) => {
+  const actual = await importActual<typeof import("../services/trustedform_client.js")>();
   return { ...actual, claim_certificate: vi.fn() };
 });
 
 import express, { type Express } from "express";
 import request from "supertest";
-import router from "../routes/index";
-import { claim_certificate } from "../services/trustedform_client";
-import { get_submission_by_certificate } from "../services/submission_store";
-import { GOOD_LEAD_EVENT_LOG } from "../fixtures/sample_leads";
+import router from "../routes/index.js";
+import { claim_certificate } from "../services/trustedform_client.js";
+import { get_submission_by_certificate } from "../services/submission_store.js";
+import { GOOD_LEAD_EVENT_LOG } from "../fixtures/sample_leads.js";
 
 const VALID_URL = `https://cert.trustedform.com/${"a".repeat(40)}`;
 

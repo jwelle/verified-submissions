@@ -1,6 +1,6 @@
 import { db, leadSubmissionsTable, type InsertLeadSubmission, type LeadSubmission } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.js";
 
 export type SaveSubmissionInput = {
   certificate_url?: string;

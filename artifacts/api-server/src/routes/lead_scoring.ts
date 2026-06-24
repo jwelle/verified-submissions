@@ -1,11 +1,11 @@
 import { Router, type Request, type Response } from "express";
-import { claim_certificate, is_valid_trustedform_url } from "../services/trustedform_client";
+import { claim_certificate, is_valid_trustedform_url } from "../services/trustedform_client.js";
 import {
   parse_trustedform_text,
   parse_trustedform_payload,
-} from "../services/event_parser";
-import { infer_field_roles, normalize_submission } from "../services/field_inference";
-import { score_lead } from "../services/scoring_engine";
+} from "../services/event_parser.js";
+import { infer_field_roles, normalize_submission } from "../services/field_inference.js";
+import { score_lead } from "../services/scoring_engine.js";
 
 const router = Router();
 

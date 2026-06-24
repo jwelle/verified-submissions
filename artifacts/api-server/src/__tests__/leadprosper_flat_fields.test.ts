@@ -4,9 +4,9 @@ import {
   classifyLead,
   mapToLeadProsperFlatFields,
   MODEL_VERSION,
-} from "../services/leadprosper_flat_fields";
-import type { ScoreResult } from "../services/scoring_engine";
-import type { ScoreAndRouteOutcome } from "../services/score_and_route_service";
+} from "../services/leadprosper_flat_fields.js";
+import type { ScoreResult } from "../services/scoring_engine.js";
+import type { ScoreAndRouteOutcome } from "../services/score_and_route_service.js";
 
 function scoreFixture(overrides: Partial<ScoreResult> = {}): ScoreResult {
   return {

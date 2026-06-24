@@ -1,4 +1,4 @@
-import { ParsedLead } from "./event_parser";
+import { ParsedLead } from "./event_parser.js";
 
 // Manual overrides — these map known TrustedForm field IDs to semantic roles.
 // Update this map to match the specific form you are integrating with.

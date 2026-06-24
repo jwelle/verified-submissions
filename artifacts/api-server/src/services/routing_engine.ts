@@ -1,5 +1,5 @@
-import { NormalizedSubmission } from "./field_inference";
-import { ScoreResult } from "./scoring_engine";
+import { NormalizedSubmission } from "./field_inference.js";
+import { ScoreResult } from "./scoring_engine.js";
 
 // Configuration shape for routing decisions
 export interface RoutingConfig {

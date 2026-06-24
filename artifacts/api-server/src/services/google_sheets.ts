@@ -2,7 +2,7 @@
 // (googleapis package, authenticated via Replit connectors service)
 // Connection ID: conn_google-sheet_01KMKXR7H5F99NWQB27KMFM1T9
 import { google } from "googleapis";
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.js";
 
 const DEFAULT_SHEET_NAME = "Lead Review Queue";
 

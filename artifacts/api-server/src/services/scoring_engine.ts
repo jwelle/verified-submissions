@@ -1,6 +1,6 @@
-import { NormalizedSubmission } from "./field_inference";
-import { ParsedEvent } from "./event_parser";
-import * as rules from "../config/scoring_rules";
+import { NormalizedSubmission } from "./field_inference.js";
+import { ParsedEvent } from "./event_parser.js";
+import * as rules from "../config/scoring_rules.js";
 
 // ---------------------------------- Types ----------------------------------
 

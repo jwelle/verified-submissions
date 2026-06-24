@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from "express";
-import { require_api_key } from "../middlewares/api_key";
-import { normalizeLeadProsperPayload } from "../services/leadprosper_adapter";
-import { scoreAndRouteLead } from "../services/score_and_route_service";
-import { mapToLeadProsperFlatFields } from "../services/leadprosper_flat_fields";
+import { require_api_key } from "../middlewares/api_key.js";
+import { normalizeLeadProsperPayload } from "../services/leadprosper_adapter.js";
+import { scoreAndRouteLead } from "../services/score_and_route_service.js";
+import { mapToLeadProsperFlatFields } from "../services/leadprosper_flat_fields.js";
 
 const router = Router();
 

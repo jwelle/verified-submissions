@@ -1,4 +1,4 @@
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.js";
 
 const TRUSTED_FORM_DOMAIN = "https://cert.trustedform.com";
 const REQUEST_TIMEOUT_MS = 15_000;

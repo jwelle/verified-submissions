@@ -1,5 +1,5 @@
-import type { ScoreResult } from "./scoring_engine";
-import type { ScoreAndRouteOutcome } from "./score_and_route_service";
+import type { ScoreResult } from "./scoring_engine.js";
+import type { ScoreAndRouteOutcome } from "./score_and_route_service.js";
 
 // Version stamp returned to Lead Prosper so responses are traceable to a model rev.
 export const MODEL_VERSION = "0.1-beta";

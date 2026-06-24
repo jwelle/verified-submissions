@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { timingSafeEqual } from "node:crypto";
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.js";
 
 // Constant-time string comparison to avoid leaking the key via timing.
 function safe_equal(a: string, b: string): boolean {

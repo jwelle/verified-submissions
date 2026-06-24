@@ -1,18 +1,18 @@
 import { Router, type Request, type Response } from "express";
 import {
   parse_trustedform_text,
-} from "../services/event_parser";
-import { infer_field_roles, normalize_submission } from "../services/field_inference";
-import { score_lead } from "../services/scoring_engine";
+} from "../services/event_parser.js";
+import { infer_field_roles, normalize_submission } from "../services/field_inference.js";
+import { score_lead } from "../services/scoring_engine.js";
 import {
   route_lead,
   build_webhook_payload,
   type RoutingConfig,
-} from "../services/routing_engine";
-import { append_review_row } from "../services/google_sheets";
-import { dispatch_outbound_webhook } from "../services/webhook_dispatcher";
-import { save_submission } from "../services/submission_store";
-import { scoreAndRouteLead } from "../services/score_and_route_service";
+} from "../services/routing_engine.js";
+import { append_review_row } from "../services/google_sheets.js";
+import { dispatch_outbound_webhook } from "../services/webhook_dispatcher.js";
+import { save_submission } from "../services/submission_store.js";
+import { scoreAndRouteLead } from "../services/score_and_route_service.js";
 
 const router = Router();
 

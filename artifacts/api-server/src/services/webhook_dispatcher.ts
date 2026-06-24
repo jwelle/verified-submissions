@@ -1,4 +1,4 @@
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.js";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_RETRY_ATTEMPTS = 3;

@@ -2,25 +2,25 @@ import {
   claim_certificate,
   is_valid_trustedform_url,
   normalize_certificate_url,
-} from "./trustedform_client";
+} from "./trustedform_client.js";
 import {
   parse_trustedform_text,
   parse_trustedform_payload,
-} from "./event_parser";
-import { infer_field_roles, normalize_submission } from "./field_inference";
-import { score_lead, type ScoreResult } from "./scoring_engine";
+} from "./event_parser.js";
+import { infer_field_roles, normalize_submission } from "./field_inference.js";
+import { score_lead, type ScoreResult } from "./scoring_engine.js";
 import {
   route_lead,
   build_webhook_payload,
   type RoutingConfig,
   type RoutingResult,
-} from "./routing_engine";
-import { append_review_row } from "./google_sheets";
-import { dispatch_outbound_webhook } from "./webhook_dispatcher";
+} from "./routing_engine.js";
+import { append_review_row } from "./google_sheets.js";
+import { dispatch_outbound_webhook } from "./webhook_dispatcher.js";
 import {
   save_submission,
   get_submission_by_certificate,
-} from "./submission_store";
+} from "./submission_store.js";
 
 // Flat snapshot of a normalized submission, used both in API responses and
 // when persisting to the lead_submissions table.

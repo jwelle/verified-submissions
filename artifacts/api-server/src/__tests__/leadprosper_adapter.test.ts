@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeLeadProsperPayload } from "../services/leadprosper_adapter";
+import { normalizeLeadProsperPayload } from "../services/leadprosper_adapter.js";
 
 const HASH = "a".repeat(40);
 const URL = `https://cert.trustedform.com/${HASH}`;
