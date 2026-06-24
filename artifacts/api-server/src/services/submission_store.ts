@@ -1,6 +1,51 @@
-import { db, leadSubmissionsTable, type InsertLeadSubmission, type LeadSubmission } from "@workspace/db";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { pgTable, text, uuid, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { eq, or } from "drizzle-orm";
+import pg from "pg";
 import { logger } from "../lib/logger.js";
+
+const { Pool } = pg;
+
+export const leadSubmissionsTable = pgTable(
+  "lead_submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    received_at: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+    certificate_url: text("certificate_url"),
+    certificate_id: text("certificate_id"),
+    raw_payload_json: jsonb("raw_payload_json"),
+    trustedform_raw_json: jsonb("trustedform_raw_json"),
+    parsed_submission_json: jsonb("parsed_submission_json"),
+    score_json: jsonb("score_json"),
+    status: text("status"),
+    processed_at: timestamp("processed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("lead_submissions_certificate_url_idx").on(table.certificate_url),
+  ],
+);
+
+const schema = { leadSubmissionsTable };
+
+export type LeadSubmission = typeof leadSubmissionsTable.$inferSelect;
+export type InsertLeadSubmission = typeof leadSubmissionsTable.$inferInsert;
+
+let db: NodePgDatabase<typeof schema> | undefined;
+
+function getDb(): NodePgDatabase<typeof schema> {
+  if (db) return db;
+
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL must be set. Did you forget to provision a database?",
+    );
+  }
+
+  const pool = new Pool({ connectionString: databaseUrl });
+  db = drizzle(pool, { schema });
+  return db;
+}
 
 export type SaveSubmissionInput = {
   certificate_url?: string;
@@ -21,6 +66,7 @@ export async function save_submission(
   input: SaveSubmissionInput,
 ): Promise<LeadSubmission | null> {
   try {
+    const client = getDb();
     const row: InsertLeadSubmission = {
       certificate_url: input.certificate_url ?? null,
       certificate_id: input.certificate_id ?? null,
@@ -34,7 +80,7 @@ export async function save_submission(
 
     if (input.certificate_url) {
       // Upsert — dedup on certificate_url
-      const [saved] = await db
+      const [saved] = await client
         .insert(leadSubmissionsTable)
         .values(row)
         .onConflictDoUpdate({
@@ -53,7 +99,7 @@ export async function save_submission(
       return saved ?? null;
     } else {
       // No cert URL (from-text) — always insert a fresh row
-      const [saved] = await db
+      const [saved] = await client
         .insert(leadSubmissionsTable)
         .values(row)
         .returning();
@@ -74,6 +120,7 @@ export async function get_submission_by_certificate(
   if (!certificate_url && !certificate_id) return null;
 
   try {
+    const client = getDb();
     const conditions = [];
     if (certificate_url) {
       conditions.push(eq(leadSubmissionsTable.certificate_url, certificate_url));
@@ -82,7 +129,7 @@ export async function get_submission_by_certificate(
       conditions.push(eq(leadSubmissionsTable.certificate_id, certificate_id));
     }
 
-    const [row] = await db
+    const [row] = await client
       .select()
       .from(leadSubmissionsTable)
       .where(conditions.length === 1 ? conditions[0]! : or(...conditions))
