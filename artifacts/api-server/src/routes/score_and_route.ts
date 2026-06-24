@@ -1,12 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import {
-  claim_certificate,
-  is_valid_trustedform_url,
-  normalize_certificate_url,
-} from "../services/trustedform_client";
-import {
   parse_trustedform_text,
-  parse_trustedform_payload,
 } from "../services/event_parser";
 import { infer_field_roles, normalize_submission } from "../services/field_inference";
 import { score_lead } from "../services/scoring_engine";
@@ -17,10 +11,8 @@ import {
 } from "../services/routing_engine";
 import { append_review_row } from "../services/google_sheets";
 import { dispatch_outbound_webhook } from "../services/webhook_dispatcher";
-import {
-  save_submission,
-  get_submission_by_certificate,
-} from "../services/submission_store";
+import { save_submission } from "../services/submission_store";
+import { scoreAndRouteLead } from "../services/score_and_route_service";
 
 const router = Router();
 
@@ -45,6 +37,9 @@ function get_outbound_webhook_config() {
 
 // POST /api/score-and-route
 // Full Pass 2 pipeline: claim → parse → infer → normalize → score → route → sheets → webhook
+// The pipeline itself lives in scoreAndRouteLead() so it can be shared with the
+// LeadProsper adapter without an internal HTTP call. This handler only maps the
+// shared outcome onto the original JSON response shape.
 router.post("/score-and-route", async (req: Request, res: Response) => {
   const raw_url = req.body?.certificate_url as string | undefined;
   const force = req.query["force"] === "true" || req.body?.force === true;
@@ -58,165 +53,63 @@ router.post("/score-and-route", async (req: Request, res: Response) => {
     return;
   }
 
-  // Normalize: strip trailing paths like /assets/#certificate that browsers append
-  const certificate_url = normalize_certificate_url(raw_url);
+  const outcome = await scoreAndRouteLead({
+    raw_url,
+    raw_payload: req.body as Record<string, unknown>,
+    force,
+    source: "generic",
+  });
 
-  if (!is_valid_trustedform_url(certificate_url)) {
-    res.status(400).json({
-      ok: false,
-      error: "certificate_url must begin with https://cert.trustedform.com",
-    });
-    return;
-  }
+  switch (outcome.kind) {
+    case "invalid_url":
+      res.status(400).json({ ok: false, error: outcome.error });
+      return;
 
-  // 1b. Check for an existing stored result (skip if ?force=true)
-  if (!force) {
-    const existing = await get_submission_by_certificate(certificate_url, undefined);
-    if (existing) {
+    case "cached":
       res.json({
         ok: true,
         cached: true,
-        stored_at: existing.processed_at,
-        claim_result: { ok: true, status_code: 200, certificate_url },
-        parsed_lead: existing.parsed_submission_json,
-        score: existing.score_json,
+        stored_at: outcome.stored_at,
+        claim_result: { ok: true, status_code: 200, certificate_url: outcome.certificate_url },
+        parsed_lead: outcome.parsed_lead,
+        score: outcome.score,
         routing: null,
         sheet_result: null,
         webhook_result: null,
       });
       return;
-    }
-  }
 
-  // 2. Claim certificate
-  const claim_result = await claim_certificate(certificate_url);
-
-  if (!claim_result.ok) {
-    const friendly =
-      claim_result.status_code === 404
-        ? "Certificate not found. It may have expired, already been claimed, or the URL is invalid."
-        : claim_result.status_code === 401
-          ? "TrustedForm API authentication failed. Check the ACTIVEPROSPECT_API_KEY secret."
-          : `TrustedForm returned an error (HTTP ${claim_result.status_code ?? "unknown"}): ${claim_result.error ?? "no detail"}`;
-
-    res.json({
-      ok: false,
-      error: friendly,
-      claim_result: {
+    case "claim_failed":
+      res.json({
         ok: false,
-        status_code: claim_result.status_code,
-        error: friendly,
-        certificate_url,
-      },
-      parsed_lead: null,
-      score: null,
-      routing: null,
-      sheet_result: null,
-      webhook_result: null,
-    });
-    return;
+        error: outcome.error,
+        claim_result: {
+          ok: false,
+          status_code: outcome.status_code,
+          error: outcome.error,
+          certificate_url: outcome.certificate_url,
+        },
+        parsed_lead: null,
+        score: null,
+        routing: null,
+        sheet_result: null,
+        webhook_result: null,
+      });
+      return;
+
+    case "scored":
+      res.json({
+        ok: true,
+        cached: false,
+        claim_result: outcome.claim_result,
+        parsed_lead: outcome.parsed_lead,
+        score: outcome.score,
+        routing: outcome.routing,
+        sheet_result: outcome.sheet_result,
+        webhook_result: outcome.webhook_result,
+      });
+      return;
   }
-
-  // 3. Parse
-  let parsed_lead;
-  if (
-    typeof claim_result.data["raw_text"] === "string" &&
-    (claim_result.data["raw_text"] as string).length > 0
-  ) {
-    parsed_lead = parse_trustedform_text(claim_result.data["raw_text"] as string);
-  } else {
-    parsed_lead = parse_trustedform_payload(claim_result.data);
-  }
-
-  // 4 & 5. Infer + normalize
-  const inferred_fields = infer_field_roles(parsed_lead.field_map);
-  const normalized = normalize_submission(parsed_lead, inferred_fields);
-
-  // 6. Score
-  const score = score_lead(normalized);
-
-  // 7. Route
-  const routing_config = get_routing_config();
-  const routing = route_lead(normalized, score, routing_config);
-
-  // 8. Google Sheets — only for review leads
-  let sheet_result = null;
-  if (score.status === "review" && routing_config.google_sheets_enabled !== false) {
-    sheet_result = await append_review_row(
-      {
-        score: score.value,
-        status: score.status,
-        confidence: score.confidence,
-        first_name: normalized.first_name,
-        last_name: normalized.last_name,
-        email: normalized.email,
-        phone: normalized.phone,
-        address: normalized.address_full,
-        business_name: normalized.business_name,
-        risk_flags: score.risk_flags,
-        explanations: score.explanations,
-        certificate_id: normalized.certificate_id,
-        certificate_url,
-        lead_source: normalized.lead_source,
-        employee_count: normalized.employee_count,
-        consent_detected: normalized.consent_detected,
-      },
-      certificate_url,
-    );
-  }
-
-  // 9. Outbound webhook
-  const webhook_config = get_outbound_webhook_config();
-  let webhook_result = null;
-  if (webhook_config.enabled) {
-    const payload = build_webhook_payload(normalized, score, routing, certificate_url);
-    webhook_result = await dispatch_outbound_webhook(payload, webhook_config);
-  }
-
-  // 10. Persist the result
-  const parsed_lead_payload = {
-    certificate_id: normalized.certificate_id,
-    certificate_created_at: normalized.certificate_created_at,
-    submitted_at: normalized.submitted_at,
-    consent_detected: normalized.consent_detected,
-    lead_source: normalized.lead_source,
-    business_name: normalized.business_name,
-    address_full: normalized.address_full,
-    email: normalized.email,
-    phone: normalized.phone,
-    first_name: normalized.first_name,
-    last_name: normalized.last_name,
-    employee_count: normalized.employee_count,
-    field_map: normalized.field_map,
-    parse_notes: normalized.parse_notes,
-    status: normalized.status,
-  };
-
-  await save_submission({
-    certificate_url,
-    certificate_id: normalized.certificate_id || undefined,
-    raw_payload_json: req.body as Record<string, unknown>,
-    trustedform_raw_json: claim_result.data,
-    parsed_submission_json: parsed_lead_payload as unknown as Record<string, unknown>,
-    score_json: score as unknown as Record<string, unknown>,
-    status: score.status,
-    processed_at: new Date(),
-  });
-
-  // 11. Return structured response
-  res.json({
-    ok: true,
-    cached: false,
-    claim_result: {
-      ok: claim_result.ok,
-      status_code: claim_result.status_code,
-    },
-    parsed_lead: parsed_lead_payload,
-    score,
-    routing,
-    sheet_result,
-    webhook_result,
-  });
 });
 
 // POST /api/score-and-route/from-text
